@@ -1,0 +1,22 @@
+version: "3.9"
+
+services:
+  ftp-watcher:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ftp-watcher
+    ports:
+      - "21:21"
+      - "21000-21010:21000-21010"
+    volumes:
+      - ./data:/home/ftpuser/ftp:rw # Mount the local 'data' folder as the FTP root
+    environment:
+      FTP_USER: "ftpuser"
+      FTP_PASS: "password"
+    restart: always
+    command: [ "sh", "-c", "vsftpd /etc/vsftpd.conf & watcher" ]
+
+volumes:
+  ftp_data:
+    driver: local
