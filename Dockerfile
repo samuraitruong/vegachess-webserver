@@ -1,5 +1,5 @@
 # Start with a base image that has Go pre-installed
-FROM golang:1.20 as builder
+FROM golang:1.23 as builder
 
 # Install required tools
 RUN apt-get update && apt-get install -y \
@@ -25,7 +25,7 @@ FROM debian:bullseye-slim
 
 # Install required packages
 RUN apt-get update && apt-get install -y \
-    vsftpd \
+    vsftpd net-tools ftp git\
     && rm -rf /var/lib/apt/lists/*
 
 # Copy FTP configuration
@@ -37,9 +37,21 @@ RUN useradd -m ftpuser && echo "ftpuser:password" | chpasswd && \
 
 # Expose FTP ports
 EXPOSE 21 21000-21010
-
+EXPOSE 2121
 # Copy the built Go binary
 COPY --from=builder /app/watcher /usr/local/bin/watcher
-
+RUN mkdir /data && chown ftpuser:ftpuser /data && chmod 755 /data
 # Run FTP server and watcher
-CMD ["/bin/bash", "-c", "vsftpd /etc/vsftpd.conf & watcher"]
+# CMD ["/bin/bash", "-c", "vsftpd /etc/vsftpd.conf & watcher"]
+COPY entrypoint.sh /etc/entrypoint.sh
+ENV SSH_KEY_DIR=/root/.ssh
+ENV GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+
+COPY .ssh /root/.ssh
+
+# Set proper permissions for the SSH key
+RUN chmod 600 /root/.ssh/id_ed25519 \
+    && ssh-keyscan github.com >> /root/.ssh/known_hosts
+WORKDIR /app
+RUN chmod +x /etc/entrypoint.sh
+ENTRYPOINT [ "/etc/entrypoint.sh" ]

@@ -8,14 +8,20 @@ services:
     container_name: ftp-watcher
     ports:
       - "21:21"
+      - "2121:2121"
       - "21000-21010:21000-21010"
     volumes:
-      - ./data:/home/ftpuser/ftp:rw # Mount the local 'data' folder as the FTP root
+      # - ./data:/home/ftpuser/ftp:rw # Mount the local 'data' folder as the FTP root
+      - ftp_data:/data:rw
+      - ./vsftpd.conf:/etc/vsftpd.conf
     environment:
-      FTP_USER: "ftpuser"
+      REPO_URL: "git@github.com:Hobsons-Bay-Chess-Club-AU/tournaments.git"
+      FTP_USER: "vega"
       FTP_PASS: "password"
-    restart: always
-    command: [ "sh", "-c", "vsftpd /etc/vsftpd.conf & watcher" ]
+      DRYRUN: "false"
+      DELAY_TIME: 5
+    #restart: always
+    # command: [ "sh", "-c", "vsftpd /etc/vsftpd.conf" ]
 
 volumes:
   ftp_data:
