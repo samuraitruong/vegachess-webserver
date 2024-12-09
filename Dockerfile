@@ -1,57 +1,37 @@
-# Start with a base image that has Go pre-installed
-FROM golang:1.23 as builder
+ARG BASE_IMG=alpine:3.15
 
-# Install required tools
-RUN apt-get update && apt-get install -y \
-    vsftpd \
-    nano \
-    && rm -rf /var/lib/apt/lists/*
+FROM $BASE_IMG AS pidproxy
 
-# Set the working directory
-WORKDIR /app
+# want pidproxy:
+RUN apk add alpine-sdk \
+    && git clone https://github.com/ZentriaMC/pidproxy.git \
+    && cd pidproxy \
+    && git checkout 193e5080e3e9b733a59e25d8f7ec84aee374b9bb \
+    && sed -i 's/-mtune=generic/-mtune=native/g' Makefile \
+    && make \
+    && mv pidproxy /usr/bin/pidproxy \
+    && cd .. \
+    && rm -rf pidproxy \
+    && apk del alpine-sdk
 
-# Copy Go source code into the container
-COPY watcher/ /app/
+FROM $BASE_IMG
 
-# Install GoLand (Optional: if you're running locally and want an IDE, configure it outside the container)
-# RUN wget -qO- https://download.jetbrains.com/go/goland-<version>.tar.gz | tar xvz
+COPY --from=pidproxy /usr/bin/pidproxy /usr/bin/pidproxy
+RUN apk add vsftpd tini
 
-# Build Go application
+COPY conf/start_vsftpd.sh /bin/start_vsftpd.sh
+COPY conf/vsftpd.conf /etc/vsftpd/vsftpd.conf
 
-RUN go mod init ftp-watcher && go mod tidy && go build -o watcher main.go
+# make sure can execute the script else get permission denied:
+RUN chmod +x /bin/start_vsftpd.sh
+EXPOSE 21
+EXPOSE 21001
+EXPOSE 21002
+EXPOSE 21003
+EXPOSE 21004
+EXPOSE 21005
+EXPOSE 21000
+# vsftpd fails to run without this as the conf is owned by the wrong user
+RUN chown root /etc/vsftpd/vsftpd.conf
 
-# Prepare final image
-FROM debian:bullseye-slim
-
-# Install required packages
-RUN apt-get update && apt-get install -y \
-    vsftpd net-tools ftp git\
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy FTP configuration
-COPY vsftpd.conf /etc/vsftpd.conf
-
-# Create FTP user and folder
-RUN useradd -m ftpuser && echo "ftpuser:password" | chpasswd && \
-    mkdir -p /home/ftpuser/ftp && chown -R ftpuser:ftpuser /home/ftpuser/ftp
-
-# Expose FTP ports
-EXPOSE 21 21000-21010
-EXPOSE 2121
-# Copy the built Go binary
-COPY --from=builder /app/watcher /usr/local/bin/watcher
-RUN mkdir /data && chown ftpuser:ftpuser /data && chmod 755 /data
-# Run FTP server and watcher
-# CMD ["/bin/bash", "-c", "vsftpd /etc/vsftpd.conf & watcher"]
-COPY entrypoint.sh /etc/entrypoint.sh
-ENV SSH_KEY_DIR=/root/.ssh
-ENV GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
-
-COPY .ssh /root/.ssh
-
-# Set proper permissions for the SSH key
-RUN chmod 600 /root/.ssh/id_ed25519 \
-    && ssh-keyscan github.com >> /root/.ssh/known_hosts
-WORKDIR /app
-RUN chmod +x /etc/entrypoint.sh
-ENTRYPOINT [ "/etc/entrypoint.sh" ]
+ENTRYPOINT ["/sbin/tini", "--", "/bin/start_vsftpd.sh"]

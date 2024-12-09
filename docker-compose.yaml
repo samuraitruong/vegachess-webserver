@@ -8,7 +8,7 @@ services:
     container_name: ftp-watcher
     ports:
       - "21:21"
-      - "2121:2121"
+      - "8080:8080"
       - "21000-21010:21000-21010"
     volumes:
       # - ./data:/home/ftpuser/ftp:rw # Mount the local 'data' folder as the FTP root

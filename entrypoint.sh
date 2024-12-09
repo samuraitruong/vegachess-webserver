@@ -1,10 +1,15 @@
 #!/bin/sh
 
 # Exit immediately if a command exits with a non-zero status
-set -e
+set -ex
 git config --global user.name "Vega Publish"
 git config --global user.email "vega@ci.com"
 
+echo "Before setting defaults: FTP_USER=$FTP_USER, FTP_PASS=$FTP_PASS"
+FTP_USER=${FTP_USER:-ftpuser}
+FTP_PASS=${FTP_PASS:-password}
+echo "After setting defaults: FTP_USER=$FTP_USER, FTP_PASS=$FTP_PASS"
+export
 # Default environment variables if not provided
 FTP_USER=${FTP_USER:-ftpuser}
 FTP_PASS=${FTP_PASS:-password}
@@ -35,4 +40,20 @@ chmod 755 /data
 #ls
 # Start the vsftpd service
 echo "Starting vsftpd"
-vsftpd /etc/vsftpd.conf & watcher
+
+if [ -z "$MIN_PORT" ]; then
+  MIN_PORT=21000
+fi
+
+if [ -z "$MAX_PORT" ]; then
+  MAX_PORT=21010
+fi
+
+if [ ! -z "$ADDRESS" ]; then
+  ADDR_OPT="-opasv_address=$ADDRESS"
+fi
+
+echo "address" $ADDRESS
+iptables -A INPUT -p tcp --dport $MIN_PORT:$MAX_PORT -j ACCEPT
+
+vsftpd -opasv_min_port=$MIN_PORT -opasv_max_port=$MAX_PORT -opasv_address=$ADDR_OPT /etc/vsftpd.conf &  watcher 

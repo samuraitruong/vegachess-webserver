@@ -3,10 +3,12 @@ package main
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"strconv"
 	"time"
+
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -17,6 +19,8 @@ var DRYRUN = os.Getenv("DRYRUN") == "true"
 var REPO_FOLDER = "tournaments"
 
 func main() {
+	// Start the HTTP server in a separate goroutine
+	go startHTTPServer()
 
 	// Read DELAY_TIME from environment variable
 	DELAY_TIME, err := strconv.Atoi(os.Getenv("DELAY_TIME"))
@@ -64,7 +68,7 @@ func main() {
 			if !ok {
 				return
 			}
-			fmt.Println("Event:", event)
+			// fmt.Println("Event:", event)
 			if event.Op&(fsnotify.Create|fsnotify.Write|fsnotify.Remove|fsnotify.Rename) != 0 {
 				debounce(event)
 			}
@@ -74,6 +78,23 @@ func main() {
 			}
 			fmt.Println("Error:", err)
 		}
+	}
+}
+
+// Starts a simple HTTP server
+func startHTTPServer() {
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "Watcher is running")
+	})
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "OK")
+	})
+
+	port := 8080 // Default HTTP port
+	fmt.Printf("HTTP server is running on port %d\n", port)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", port), nil)
+	if err != nil {
+		log.Fatalf("HTTP server failed: %v", err)
 	}
 }
 
@@ -89,9 +110,8 @@ func ensureRepoClone(directory string) {
 		fmt.Printf("Running command: git clone --depth 1 %s %s\n", REPO_URL, directory)
 		fmt.Printf("Command output: %s\n", output)
 		if err != nil {
-			// Log error but don't exit
 			log.Printf("Error cloning repository: %v\nOutput: %s\n", err, output)
-			return // Skip further execution in this function
+			return
 		}
 		fmt.Println("Repository cloned.")
 	} else {
@@ -103,9 +123,8 @@ func ensureRepoClone(directory string) {
 		fmt.Printf("Running command: git pull\n")
 		fmt.Printf("Command output: %s\n", output)
 		if err != nil {
-			// Log error but don't exit
 			log.Printf("Error pulling repository changes: %v\nOutput: %s\n", err, output)
-			return // Skip further execution in this function
+			return
 		}
 		fmt.Println("Repository updated.")
 	}
@@ -117,42 +136,35 @@ func copyFiles(srcDir, dstDir string) {
 
 	// Use sh -c to allow wildcard expansion through the shell
 	cmd := exec.Command("sh", "-c", fmt.Sprintf("cp -R %s/* %s", srcDir, dstDir))
-	output, err := cmd.CombinedOutput() // Capture both stdout and stderr
+	output, err := cmd.CombinedOutput()
 
 	if err != nil {
-		// Log the error along with the command output for debugging
 		log.Printf("Error copying files from %s to %s: %v\nOutput: %s\n", srcDir, dstDir, err, output)
 	} else {
-		// Log success message if no error
 		fmt.Println("Files copied successfully from", srcDir, "to", dstDir)
 	}
 }
 
 // gitPush runs a git push command to push changes to the remote repository
 func gitPush(dryrun bool) {
-	// Step 1: Check the status of the git repository
 	cmd := exec.Command("git", "status")
 	cmd.Dir = REPO_FOLDER
 	output, err := cmd.CombinedOutput()
 	fmt.Printf("Running command: git status\n")
 	fmt.Printf("Command output: %s\n", output)
 	if err != nil {
-		// Log error but don't exit
 		log.Printf("Error running git status: %v\nOutput: %s\n", err, output)
 	}
 
-	// Step 2: Add all changes to staging (git add .)
 	cmd = exec.Command("git", "add", ".")
 	cmd.Dir = REPO_FOLDER
 	output, err = cmd.CombinedOutput()
 	fmt.Printf("Running command: git add .\n")
 	fmt.Printf("Command output: %s\n", output)
 	if err != nil {
-		// Log error but don't exit
 		log.Printf("Error running git add: %v\nOutput: %s\n", err, output)
 	}
 
-	// Step 3: Commit changes with a message
 	commitMessage := "Vega Publish: Update vega publish html from clients"
 	cmd = exec.Command("git", "commit", "-m", commitMessage)
 	cmd.Dir = REPO_FOLDER
@@ -160,11 +172,9 @@ func gitPush(dryrun bool) {
 	fmt.Printf("Running command: git commit -m \"%s\"\n", commitMessage)
 	fmt.Printf("Command output: %s\n", output)
 	if err != nil {
-		// Log error but don't exit
 		log.Printf("Error running git commit: %v\nOutput: %s\n", err, output)
 	}
 
-	// Step 4: Conditionally push changes (only if dryrun is false)
 	if dryrun {
 		fmt.Println("Dry run enabled. Skipping git push.")
 	} else {
@@ -174,11 +184,9 @@ func gitPush(dryrun bool) {
 		fmt.Printf("Running command: git push\n")
 		fmt.Printf("Command output: %s\n", output)
 		if err != nil {
-			// Log error but don't exit
 			log.Printf("Error running git push: %v\nOutput: %s\n", err, output)
 		}
 	}
 
-	// Success message
 	fmt.Println("Git commit (and push if not dryrun) completed.")
 }

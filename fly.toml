@@ -1,22 +1,101 @@
-# fly.toml app configuration file generated for vega-ftp on 2024-12-07T19:38:36+11:00
-#
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
-
 app = 'vega-ftp'
 primary_region = 'syd'
 
 [build]
+  dockerfile = "Dockerfile_old"
 
 [http_service]
-  internal_port = 21
+  internal_port = 8080
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
   processes = ['app']
 
+[env]
+TINI_SUBREAPER = true
+MIN_PORT = 21000
+MAX_PORT = 21010
+ADDRESS  = '66.241.124.226'
+
+[experimental]
+allowed_public_ports = []
+auto_rollback = true
+
 [[vm]]
-  memory = '1gb'
-  cpu_kind = 'shared'
-  cpus = 1
+memory = '1gb'
+cpu_kind = 'shared'
+cpus = 1
+
+[[services]]
+internal_port = 21
+protocol = "tcp"
+[[services.ports]]
+  port = 21
+
+[[services]]
+internal_port = 21000
+protocol = "tcp"
+[[services.ports]]
+port = "21000"
+
+
+[[services]]
+internal_port = 21001
+protocol = "tcp"
+[[services.ports]]
+port = "21001"
+
+[[services]]
+internal_port = 21002
+protocol = "tcp"
+[[services.ports]]
+port = "21002"
+
+[[services]]
+internal_port = 21003
+protocol = "tcp"
+[[services.ports]]
+port = "21003"
+
+[[services]]
+internal_port = 21004
+protocol = "tcp"
+[[services.ports]]
+port = "21004"
+
+[[services]]
+internal_port = 21005
+protocol = "tcp"
+[[services.ports]]
+port = "21005"
+
+[[services]]
+internal_port = 21006
+protocol = "tcp"
+[[services.ports]]
+port = "21006"
+
+[[services]]
+internal_port = 21007
+protocol = "tcp"
+[[services.ports]]
+port = "21007"
+
+[[services]]
+internal_port = 21008
+protocol = "tcp"
+[[services.ports]]
+port = "21008"
+
+[[services]]
+internal_port = 21009
+protocol = "tcp"
+[[services.ports]]
+port = "21009"
+
+[[services]]
+internal_port = 21010
+protocol = "tcp"
+[[services.ports]]
+port = "21010"
